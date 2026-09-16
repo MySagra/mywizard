@@ -1,5 +1,5 @@
-import { writeFileSync, existsSync, chmodSync } from "node:fs";
-import { join } from "node:path";
+import { writeFileSync, existsSync, chmodSync, mkdirSync, symlinkSync } from "node:fs";
+import { join, dirname } from "node:path";
 import { execa } from "execa";
 import type { DerivedConfig } from "./derive.js";
 
@@ -20,15 +20,80 @@ export function dockerAvailable(): boolean {
   return existsSync("/var/run/docker.sock");
 }
 
-export function makeRunner(cwd: string): DockerRunner {
+export function makeRunner(outputDir: string, projectDir: string): DockerRunner {
   return {
     compose: (args: string[]) =>
-      execa("docker", ["compose", ...args], {
-        cwd,
-        stdio: "pipe",
-        encoding: "utf8",
-      }),
+      execa(
+        "docker",
+        [
+          "compose",
+          "--project-directory",
+          projectDir,
+          "-f",
+          join(outputDir, "docker-compose.yml"),
+          "--env-file",
+          join(outputDir, ".env"),
+          ...args,
+        ],
+        {
+          cwd: outputDir,
+          stdio: "pipe",
+          encoding: "utf8",
+        },
+      ),
   };
+}
+
+/**
+ * The installer normally runs inside its own container
+ * (`docker run -v $PWD:/out -v /var/run/docker.sock:... ghcr.io/mysagra/mywizard`),
+ * so `docker compose` here talks to the *host* daemon over the socket while
+ * `outputDir` ("/out") only exists inside our own container. Passing
+ * `--project-directory outputDir` (the previous behaviour) makes compose
+ * resolve every relative path in the generated compose file against "/out":
+ *
+ * - bind-mount volumes (Caddyfile, rootCA.pem, nginx.conf, certs/, assets/)
+ *   are resolved into a plain string handed to the *daemon*, which then
+ *   receives "/out/Caddyfile" — a path that doesn't exist on the real host,
+ *   so Docker silently creates it as a directory instead of the expected
+ *   file, breaking the mount.
+ * - `env_file: .env` entries are read by the *compose CLI itself* (to build
+ *   each container's environment), so it needs an actual, container-local
+ *   readable path, not a host-only one.
+ *
+ * Ask the daemon (via `docker inspect` on our own container) for the real
+ * host-side path bind-mounted at `outputDir`. That path fixes the volumes,
+ * but is invisible inside our own container (it only exists on the host), so
+ * `env_file: .env` would then fail to resolve instead. Symlinking it to our
+ * own bind-mounted copy satisfies both at once: compose (running in this
+ * container) reads `.env` through the symlink, while the daemon (on the
+ * host) resolves the same path to the real, already-existing folder.
+ *
+ * Running the installer directly on the host (outside a container) has no
+ * such mount to find, so this safely falls back to `outputDir` unchanged.
+ */
+export async function resolveHostProjectDir(outputDir: string): Promise<string> {
+  const containerId = process.env.HOSTNAME;
+  if (!containerId) return outputDir;
+  try {
+    const { stdout } = await execa("docker", [
+      "inspect",
+      containerId,
+      "--format",
+      "{{json .Mounts}}",
+    ]);
+    const mounts = JSON.parse(stdout) as Array<{ Destination: string; Source: string }>;
+    const hostDir = mounts.find((m) => m.Destination === outputDir)?.Source;
+    if (!hostDir || hostDir === outputDir) return outputDir;
+
+    if (!existsSync(hostDir)) {
+      mkdirSync(dirname(hostDir), { recursive: true });
+      symlinkSync(outputDir, hostDir);
+    }
+    return hostDir;
+  } catch {
+    return outputDir;
+  }
 }
 
 /** Creates a placeholder rootCA.pem so bind mounts do not fail on the first start. */

@@ -202,6 +202,28 @@ if [ "$WITH_IMAGE" = "1" ]; then
     --server-ip 192.168.1.100 --base-domain mysagra.local --services all >/dev/null
   docker compose -f "$TMP/img/docker-compose.yml" --env-file "$TMP/img/.env" config -q
   pass "image works and produces a valid stack"
+
+  step "Docker image starting the stack over the mounted socket"
+  # The published usage (`docker run -v $PWD:/out -v /var/run/docker.sock:...`)
+  # runs the installer itself in a container talking to the *host* daemon: any
+  # relative bind mount or env_file in the generated compose file must resolve
+  # against the real host path, not the container-local "/out". Root-run (no
+  # -u) matches the documented one-liner and how most users hit this.
+  mkdir -p "$TMP/imgstart"
+  docker run --rm -v "$TMP/imgstart":/out -v /var/run/docker.sock:/var/run/docker.sock \
+    mywizard:test --non-interactive --start \
+    --mode lan --server-ip 127.0.0.1 --services mycassa >/dev/null
+  test -s "$TMP/imgstart/rootCA.pem"
+  grep -q "BEGIN CERTIFICATE" "$TMP/imgstart/rootCA.pem"
+  # named by "docker ps" (not "docker compose ps"): the .env the installer just
+  # wrote is root-owned (0600), unreadable by this script's own user
+  running="$(docker ps --filter "name=^mysagra-" --format '{{.Names}}' | wc -l)"
+  test "$running" -ge 4 || { echo "expected at least 4 running mysagra- containers, got $running"; exit 1; }
+  # tear down as root too, for the same reason
+  docker run --rm -v "$TMP/imgstart":/out -v /var/run/docker.sock:/var/run/docker.sock \
+    --entrypoint docker mywizard:test \
+    compose -f /out/docker-compose.yml --env-file /out/.env --profile "*" down -v >/dev/null
+  pass "stack starts and extracts the root CA through the mounted socket"
 fi
 
 echo

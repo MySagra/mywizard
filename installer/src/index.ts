@@ -18,6 +18,7 @@ import {
   generateCertDoc,
   generateExposureDoc,
   makeRunner,
+  resolveHostProjectDir,
   writeExtractScript,
 } from "./tls.js";
 import { startStack, summary } from "./run.js";
@@ -145,7 +146,8 @@ async function main(): Promise<number> {
   }
 
   if (answers.startStack) {
-    const runner = makeRunner(outputDir);
+    const projectDir = docker ? await resolveHostProjectDir(outputDir) : outputDir;
+    const runner = makeRunner(outputDir, projectDir);
     const reporter = createReporter(!cli.nonInteractive && Boolean(process.stdout.isTTY));
     const result = await startStack(derived, runner, reporter, {
       freshDbSecret: generated.includes("DB_USER_PASSWORD"),

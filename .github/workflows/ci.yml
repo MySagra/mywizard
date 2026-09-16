@@ -54,4 +54,4 @@ jobs:
           test "$version" != "0.0.0-dev"
 
       - name: Test suite
-        run: ./scripts/test-local.sh
+        run: ./scripts/test-local.sh --image
