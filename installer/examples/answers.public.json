@@ -1,0 +1,20 @@
+{
+  "mode": "public",
+  "serverIp": "203.0.113.10",
+  "baseDomain": "mysagra.it",
+  "tls": "caddy-acme",
+  "acmeEmail": "admin@mysagra.it",
+  "services": [
+    "mycassa",
+    "myadmin",
+    "mystampa",
+    "mynumeri",
+    "myclienti",
+    "dbgate"
+  ],
+  "requireTable": false,
+  "showNumbers": true,
+  "nodeEnv": "production",
+  "startStack": true,
+  "dns": "manual"
+}

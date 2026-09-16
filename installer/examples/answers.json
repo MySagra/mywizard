@@ -1,0 +1,20 @@
+{
+  "mode": "lan",
+  "serverIp": "192.168.1.100",
+  "baseDomain": "mysagra.lan",
+  "tls": "caddy-internal",
+  "services": [
+    "mycassa",
+    "myadmin",
+    "mystampa",
+    "mynumeri",
+    "myclienti"
+  ],
+  "requireTable": true,
+  "showNumbers": false,
+  "nodeEnv": "production",
+  "startStack": false,
+  "exposeDb": false,
+  "exposeRedis": false,
+  "dns": "manual"
+}

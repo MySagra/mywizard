@@ -1,0 +1,20 @@
+{
+  "setup": "advanced",
+  "stackName": "sagra-paese",
+  "serverIp": "127.0.0.1",
+  "portOffset": 100,
+  "externalDomain": "mysagra.example.com",
+  "trustProxyLevel": 2,
+  "services": [
+    "mycassa",
+    "myadmin",
+    "mystampa",
+    "mynumeri",
+    "myclienti",
+    "dbgate"
+  ],
+  "requireTable": true,
+  "showNumbers": false,
+  "nodeEnv": "production",
+  "startStack": false
+}

@@ -1,0 +1,57 @@
+name: ci
+
+on:
+  push:
+    branches: ["**"]
+    paths:
+      - "installer/**"
+      - ".github/workflows/ci.yml"
+  pull_request:
+    paths:
+      - "installer/**"
+      - ".github/workflows/ci.yml"
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Typecheck, build and smoke test
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: installer
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          package_json_file: installer/package.json
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: installer/pnpm-lock.yaml
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Audit dependencies
+        run: pnpm audit --prod --audit-level high
+
+      - name: Typecheck, lint and format check
+        run: pnpm check
+
+      - name: Build
+        run: pnpm build
+        env:
+          APP_VERSION: ${{ github.ref_type == 'tag' && github.ref_name || format('0.0.0-{0}', github.sha) }}
+
+      - name: Version is injected at build time
+        run: |
+          set -eux
+          version="$(node dist/index.js --version)"
+          test -n "$version"
+          test "$version" != "0.0.0-dev"
+
+      - name: Test suite
+        run: ./scripts/test-local.sh
