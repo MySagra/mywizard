@@ -72,6 +72,29 @@ export function makeRunner(outputDir: string, projectDir: string): DockerRunner 
  * Running the installer directly on the host (outside a container) has no
  * such mount to find, so this safely falls back to `outputDir` unchanged.
  */
+const WINDOWS_DRIVE_PATH = /^([A-Za-z]):[\\/](.*)$/;
+
+/**
+ * Docker Desktop's WSL2 backend hands back the *raw Windows path*
+ * (`C:\Users\...`) as the bind-mount `Source` on `docker inspect`, but our
+ * own `docker compose` process runs inside this Linux container. Go's
+ * `filepath.IsAbs` there only recognises a leading `/`, so a drive-letter
+ * path is (wrongly) treated as relative and joined onto compose's cwd,
+ * producing something like `/out/C:\Users\...\Caddyfile` — which then fails
+ * to parse as `SRC:DST:MODE` ("too many colons": the drive letter adds one).
+ *
+ * `/run/desktop/mnt/host/<drive>/...` is the path Docker Desktop's daemon
+ * itself uses to reach the Windows host filesystem from inside its WSL2
+ * utility VM, so it resolves bind mounts correctly *and* starts with `/`,
+ * which satisfies compose's absolute-path check on the Linux side.
+ */
+function toDockerDesktopHostPath(hostPath: string): string {
+  const match = WINDOWS_DRIVE_PATH.exec(hostPath);
+  if (!match) return hostPath;
+  const [, drive, rest] = match;
+  return `/run/desktop/mnt/host/${drive.toLowerCase()}/${rest.replace(/\\/g, "/")}`;
+}
+
 export async function resolveHostProjectDir(outputDir: string): Promise<string> {
   const containerId = process.env.HOSTNAME;
   if (!containerId) return outputDir;
@@ -83,8 +106,9 @@ export async function resolveHostProjectDir(outputDir: string): Promise<string> 
       "{{json .Mounts}}",
     ]);
     const mounts = JSON.parse(stdout) as Array<{ Destination: string; Source: string }>;
-    const hostDir = mounts.find((m) => m.Destination === outputDir)?.Source;
-    if (!hostDir || hostDir === outputDir) return outputDir;
+    const rawHostDir = mounts.find((m) => m.Destination === outputDir)?.Source;
+    if (!rawHostDir || rawHostDir === outputDir) return outputDir;
+    const hostDir = toDockerDesktopHostPath(rawHostDir);
 
     if (!existsSync(hostDir)) {
       mkdirSync(dirname(hostDir), { recursive: true });

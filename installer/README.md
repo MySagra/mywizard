@@ -27,6 +27,18 @@ docker run --rm -it \
   ghcr.io/mysagra/mywizard:latest
 ```
 
+PowerShell (Windows):
+
+```powershell
+New-Item -ItemType Directory -Force -Path ~\mysagra | Out-Null
+Set-Location ~\mysagra
+
+docker run --rm -it `
+  -v "${PWD}:/out" `
+  -v /var/run/docker.sock:/var/run/docker.sock `
+  ghcr.io/mysagra/mywizard:latest
+```
+
 Or use the convenience scripts shipped in the repository:
 
 ```bash
