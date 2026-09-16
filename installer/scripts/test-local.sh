@@ -68,8 +68,9 @@ test "$published" -le 20 || { echo "unexpected published ports: $published"; exi
 pass "compose valid, only Caddy publishes ports"
 
 step "Caddyfile validation (LAN)"
-docker run --rm -v "$TMP/lan/Caddyfile":/etc/caddy/Caddyfile:ro caddy:2-alpine \
-  caddy validate --config /etc/caddy/Caddyfile 2>&1 | grep -q "Valid configuration"
+caddy_out="$(docker run --rm -v "$TMP/lan/Caddyfile":/etc/caddy/Caddyfile:ro caddy:2-alpine \
+  caddy validate --config /etc/caddy/Caddyfile 2>&1)"
+echo "$caddy_out" | grep -q "Valid configuration"
 pass "caddy validate ok"
 
 step "Dynamic .env (sections follow the selected services)"
@@ -180,8 +181,9 @@ grep -q "TLS_MODE=caddy-acme" "$TMP/public/.env"
 grep -q "email admin@mysagra.it" "$TMP/public/Caddyfile"
 grep -q "Strict-Transport-Security" "$TMP/public/Caddyfile"
 test ! -f "$TMP/public/rootCA.pem"
-docker run --rm -v "$TMP/public/Caddyfile":/etc/caddy/Caddyfile:ro caddy:2-alpine \
-  caddy validate --config /etc/caddy/Caddyfile 2>&1 | grep -q "Valid configuration"
+caddy_out="$(docker run --rm -v "$TMP/public/Caddyfile":/etc/caddy/Caddyfile:ro caddy:2-alpine \
+  caddy validate --config /etc/caddy/Caddyfile 2>&1)"
+echo "$caddy_out" | grep -q "Valid configuration"
 pass "ACME mode ok"
 
 step "Validation errors"

@@ -67,7 +67,7 @@ jobs:
           chmod 777 "$out"
           image="$(echo '${{ steps.meta.outputs.tags }}' | head -n1)"
           docker run --rm "$image" --version
-          docker run --rm -v "$out":/out "$image" \
+          docker run --rm -v "$out":/out -u "$(id -u):$(id -g)" -e HOME=/tmp "$image" \
             --non-interactive --mode lan --server-ip 192.168.1.100 --services all
           test -s "$out/docker-compose.yml"
           docker compose -f "$out/docker-compose.yml" --env-file "$out/.env" config -q
