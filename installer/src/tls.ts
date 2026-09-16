@@ -91,7 +91,8 @@ const WINDOWS_DRIVE_PATH = /^([A-Za-z]):[\\/](.*)$/;
 function toDockerDesktopHostPath(hostPath: string): string {
   const match = WINDOWS_DRIVE_PATH.exec(hostPath);
   if (!match) return hostPath;
-  const [, drive, rest] = match;
+  const drive = match[1]!;
+  const rest = match[2]!;
   return `/run/desktop/mnt/host/${drive.toLowerCase()}/${rest.replace(/\\/g, "/")}`;
 }
 
